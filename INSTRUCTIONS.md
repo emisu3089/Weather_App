@@ -21,7 +21,8 @@ You can also open `index.html` directly in a browser, but using the local server
 1. Enter a city, suburb, or postcode.
 2. Choose a matching BOM location from the suggestions.
 3. Use the Metric or Imperial toggle to change units.
-4. Use Nearby if you want the browser to request your location and search for a nearby BOM location.
+4. Use the 12 h or 24 h toggle to change time display.
+5. Use Nearby if you want the browser to request your location and search for a nearby BOM location.
 
 ## Development Notes
 
@@ -44,4 +45,3 @@ Create an empty GitHub repository named `Weather_App` under the `emisu3089` acco
 ```powershell
 git push -u origin main
 ```
-

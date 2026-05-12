@@ -14,8 +14,9 @@ The first version is intentionally a single static page so it is easy to run, in
 - Show daily forecast data, up to the available BOM forecast range.
 - Show upcoming hourly forecast periods.
 - Toggle between Metric and Imperial units.
+- Toggle between 12-hour and 24-hour clock formats.
 - Convert temperature, wind speed, rain amount, pressure, and common units embedded in BOM narrative forecast text.
-- Persist the last selected location and unit preference in browser local storage.
+- Persist the last selected location, unit preference, and clock preference in browser local storage.
 
 ## Data Source
 
@@ -42,4 +43,3 @@ The page currently contains all HTML, CSS, and JavaScript in one file.
 - Some observation metrics may be unavailable for a location and display as `--`.
 - Browser geolocation may not work from every local serving context or without user permission.
 - The current design is optimized for quick personal use, not yet for app-store distribution or public hosting.
-

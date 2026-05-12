@@ -93,6 +93,13 @@
         font-size: 0.9rem;
       }
 
+      .header-controls {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 10px;
+      }
+
       .unit-toggle {
         display: inline-grid;
         grid-template-columns: 1fr 1fr;
@@ -102,6 +109,10 @@
         border: 1px solid var(--line);
         border-radius: 8px;
         background: rgba(255, 253, 248, 0.7);
+      }
+
+      .time-toggle {
+        min-width: 152px;
       }
 
       .unit-toggle button {
@@ -591,8 +602,14 @@
         }
 
         .unit-toggle,
+        .time-toggle,
+        .header-controls,
         .geo-button {
           width: 100%;
+        }
+
+        .header-controls {
+          justify-content: stretch;
         }
 
         .current-panel {
@@ -672,9 +689,15 @@
             <p class="brand-subtitle">Australian forecasts with your preferred units.</p>
           </div>
         </div>
-        <div class="unit-toggle" role="group" aria-label="Units">
-          <button id="metricButton" type="button" aria-pressed="true">Metric</button>
-          <button id="imperialButton" type="button" aria-pressed="false">Imperial</button>
+        <div class="header-controls">
+          <div class="unit-toggle" role="group" aria-label="Units">
+            <button id="metricButton" type="button" aria-pressed="true">Metric</button>
+            <button id="imperialButton" type="button" aria-pressed="false">Imperial</button>
+          </div>
+          <div class="unit-toggle time-toggle" role="group" aria-label="Clock format">
+            <button id="twelveHourButton" type="button" aria-pressed="true">12 h</button>
+            <button id="twentyFourHourButton" type="button" aria-pressed="false">24 h</button>
+          </div>
         </div>
       </header>
 
@@ -754,6 +777,7 @@
       const state = {
         location: null,
         units: localStorage.getItem("units") || "metric",
+        clockFormat: localStorage.getItem("clockFormat") || "12",
         observations: null,
         daily: null,
         hourly: null,
@@ -767,6 +791,8 @@
         dashboard: document.querySelector("#dashboard"),
         metricButton: document.querySelector("#metricButton"),
         imperialButton: document.querySelector("#imperialButton"),
+        twelveHourButton: document.querySelector("#twelveHourButton"),
+        twentyFourHourButton: document.querySelector("#twentyFourHourButton"),
         geoButton: document.querySelector("#geoButton"),
       };
 
@@ -810,6 +836,10 @@
 
       function isImperial() {
         return state.units === "imperial";
+      }
+
+      function isTwelveHourClock() {
+        return state.clockFormat === "12";
       }
 
       function cToF(value) {
@@ -900,7 +930,17 @@
         return new Intl.DateTimeFormat("en-AU", {
           timeZone: "Australia/Sydney",
           ...options,
+          ...(options.hour ? { hour12: isTwelveHourClock() } : {}),
         }).format(date);
+      }
+
+      function formatHourLabel(value) {
+        return formatDateTime(
+          value,
+          isTwelveHourClock()
+            ? { hour: "numeric" }
+            : { hour: "2-digit", minute: "2-digit" },
+        );
       }
 
       function describeLocation(location) {
@@ -1215,7 +1255,7 @@
       function renderHour(hour) {
         return `
           <article class="hour">
-            <p class="hour-time">${formatDateTime(hour.time, { hour: "numeric" })}</p>
+            <p class="hour-time">${formatHourLabel(hour.time)}</p>
             <div>${iconSvg(hour.icon_descriptor)}</div>
             <p class="hour-temp">${formatTemp(hour.temp)}</p>
             <p class="hour-detail">${escapeHtml(
@@ -1316,6 +1356,16 @@
         }
       }
 
+      function setClockFormat(clockFormat) {
+        state.clockFormat = clockFormat;
+        localStorage.setItem("clockFormat", clockFormat);
+        elements.twelveHourButton.setAttribute("aria-pressed", String(clockFormat === "12"));
+        elements.twentyFourHourButton.setAttribute("aria-pressed", String(clockFormat === "24"));
+        if (state.location && (state.observations || state.daily || state.hourly)) {
+          renderWeather();
+        }
+      }
+
       async function useNearby() {
         if (!navigator.geolocation) {
           setStatus("Browser location is unavailable.", "error");
@@ -1383,9 +1433,12 @@
       elements.searchForm.addEventListener("submit", handleSearch);
       elements.metricButton.addEventListener("click", () => setUnits("metric"));
       elements.imperialButton.addEventListener("click", () => setUnits("imperial"));
+      elements.twelveHourButton.addEventListener("click", () => setClockFormat("12"));
+      elements.twentyFourHourButton.addEventListener("click", () => setClockFormat("24"));
       elements.geoButton.addEventListener("click", useNearby);
 
       setUnits(state.units);
+      setClockFormat(state.clockFormat);
       restoreLastLocation();
     </script>
   </body>

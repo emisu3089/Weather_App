@@ -10,6 +10,7 @@ A personal weather web page for Australian locations using Bureau of Meteorology
 - View daily forecasts, up to the available BOM forecast range.
 - View upcoming hourly forecast periods.
 - Switch between Metric and Imperial units.
+- Switch between 12-hour and 24-hour clock formats.
 - Convert temperature, wind, rain, pressure, and common units in BOM forecast text.
 
 ## Run Locally
@@ -40,4 +41,3 @@ It is intended for personal use and prototyping. If this app is later published 
 
 - [CONTEXT.md](CONTEXT.md) explains the project goal, current features, and caveats.
 - [INSTRUCTIONS.md](INSTRUCTIONS.md) includes local run steps and development notes.
-
