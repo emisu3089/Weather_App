@@ -1,47 +1,67 @@
-# BOM Unit Weather Instructions
+# AU and NZ Unit Weather Instructions
 
-## Run Locally
+## Local Setup
 
-From the project folder:
+Node.js 18 or newer is required.
+
+Create a private environment file from the included example:
 
 ```powershell
-python -m http.server 8077 --bind 127.0.0.1
+Copy-Item .env.example .env
 ```
 
-Then open:
+Add a MetService Point Forecast key:
 
 ```text
-http://127.0.0.1:8077/
+METSERVICE_API_KEY=your_key_here
 ```
 
-You can also open `index.html` directly in a browser, but using the local server is closer to how the page behaves when hosted.
+Do not commit `.env`. It is excluded by `.gitignore`.
+
+Start the local server:
+
+```powershell
+node server.js
+```
+
+Open:
+
+```text
+http://127.0.0.1:8080/
+```
 
 ## Use The App
 
-1. Enter a city, suburb, or postcode.
-2. Choose a matching BOM location from the suggestions.
-3. Use the Metric or Imperial toggle to change units.
-4. Use the 12 h or 24 h toggle to change time display.
-5. Use Nearby if you want the browser to request your location and search for a nearby BOM location.
+1. Enter an Australian city, suburb, or postcode, or a New Zealand place name.
+2. Choose a result identified by `AU` or `NZ`.
+3. Use Metric or Imperial to change units.
+4. Use 12 h or 24 h to change time display.
+5. Use Nearby to request browser location access.
+
+New Zealand place search works without a MetService key. New Zealand weather requires the key, while Australian BOM weather does not.
 
 ## Development Notes
 
-- Keep data-fetching logic isolated in JavaScript helper functions so a backend provider can replace the current API later.
-- Keep unit conversion functions small and testable.
-- Keep BOM wording intact where conversion would be misleading, such as warnings, UV category, and fire danger text.
-- Cache data if a backend is added.
-- Preserve attribution to the Bureau of Meteorology.
+- Keep provider credentials and upstream API requests in `server.js`.
+- Keep browser rendering dependent on the normalized weather response, not a provider-specific payload.
+- Label model estimates separately from observations.
+- Preserve provider attribution in the current weather panel.
+- Keep unit conversion functions small and covered by tests.
+- Do not imply that MetService raw model output is identical to its curated website forecast.
+- Review current provider terms before deployment or distribution.
 
-## GitHub Push
+## Test
 
-The local repository has `origin` set to:
+Run:
+
+```powershell
+npm.cmd test
+```
+
+## GitHub
+
+The repository remote is:
 
 ```text
 https://github.com/emisu3089/Weather_App.git
-```
-
-Create an empty GitHub repository named `Weather_App` under the `emisu3089` account, then push with:
-
-```powershell
-git push -u origin main
 ```

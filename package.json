@@ -1,0 +1,13 @@
+{
+  "name": "australia-new-zealand-weather",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personal Australia and New Zealand weather page with selectable units.",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>BOM Unit Weather</title>
+    <title>AU and NZ Unit Weather</title>
     <style>
       :root {
         color-scheme: light;
@@ -425,7 +425,8 @@
 
       .forecast-list {
         display: grid;
-        grid-template-columns: repeat(7, minmax(98px, 1fr));
+        grid-auto-columns: minmax(98px, 1fr);
+        grid-auto-flow: column;
         gap: 0;
         min-width: 0;
         overflow-x: auto;
@@ -617,7 +618,7 @@
         }
 
         .forecast-list {
-          grid-template-columns: repeat(7, minmax(132px, 1fr));
+          grid-auto-columns: minmax(132px, 1fr);
         }
 
         .panel-head {
@@ -685,8 +686,8 @@
             </svg>
           </div>
           <div>
-            <h1 class="brand-title">BOM Unit Weather</h1>
-            <p class="brand-subtitle">Australian forecasts with your preferred units.</p>
+            <h1 class="brand-title">AU and NZ Unit Weather</h1>
+            <p class="brand-subtitle">Australian and New Zealand forecasts in your preferred units.</p>
           </div>
         </div>
         <div class="header-controls">
@@ -709,8 +710,8 @@
               type="search"
               autocomplete="off"
               spellcheck="false"
-              placeholder="City or postcode"
-              aria-label="City or postcode"
+              placeholder="City or Australian postcode"
+              aria-label="City or Australian postcode"
             />
             <button type="submit">Search</button>
           </form>
@@ -740,8 +741,8 @@
         <div class="current-panel">
           <div class="empty-state">
             <p>
-              <strong>Pick an Australian location</strong>
-              Current conditions and BOM forecasts will appear here.
+              <strong>Pick an Australian or New Zealand location</strong>
+              Weather from BOM or MetService will appear here.
             </p>
           </div>
         </div>
@@ -773,14 +774,11 @@
     </main>
 
     <script>
-      const BOM_BASE = "https://api.weather.bom.gov.au/v1";
       const state = {
         location: null,
         units: localStorage.getItem("units") || "metric",
         clockFormat: localStorage.getItem("clockFormat") || "12",
-        observations: null,
-        daily: null,
-        hourly: null,
+        weather: null,
       };
 
       const elements = {
@@ -865,7 +863,7 @@
 
       function formatTemp(value) {
         const converted = isImperial() ? cToF(value) : value;
-        const unit = isImperial() ? "°F" : "°C";
+        const unit = isImperial() ? "\u00b0F" : "\u00b0C";
         return converted == null ? "--" : `${round(converted)}${unit}`;
       }
 
@@ -875,7 +873,7 @@
       }
 
       function tempUnit() {
-        return isImperial() ? "°F" : "°C";
+        return isImperial() ? "\u00b0F" : "\u00b0C";
       }
 
       function formatWind(value) {
@@ -918,8 +916,8 @@
             (_, value) => `${round(mmToIn(Number(value)), 2)} in`,
           )
           .replace(
-            /(\d+(?:\.\d+)?)\s*°C/gi,
-            (_, value) => `${round(cToF(Number(value)))}°F`,
+            /(\d+(?:\.\d+)?)\s*\u00b0C/gi,
+            (_, value) => `${round(cToF(Number(value)))}\u00b0F`,
           );
       }
 
@@ -928,7 +926,7 @@
         const date = new Date(value);
         if (Number.isNaN(date.getTime())) return "--";
         return new Intl.DateTimeFormat("en-AU", {
-          timeZone: "Australia/Sydney",
+          timeZone: state.weather?.timezone || state.location?.timezone || "Australia/Sydney",
           ...options,
           ...(options.hour ? { hour12: isTwelveHourClock() } : {}),
         }).format(date);
@@ -946,14 +944,8 @@
       function describeLocation(location) {
         if (!location) return "";
         const postcode = location.postcode ? ` ${location.postcode}` : "";
-        return `${location.name}${postcode}, ${location.state}`;
-      }
-
-      function normalizeGeohashes(location) {
-        const values = [location?.geohash, location?.geohash?.slice(0, 6)]
-          .filter(Boolean)
-          .filter((value, index, list) => list.indexOf(value) === index);
-        return values.length ? values : [];
+        const region = location.state ? `, ${location.state}` : "";
+        return `${location.name}${postcode}${region}, ${location.countryCode}`;
       }
 
       async function fetchJson(url) {
@@ -962,83 +954,53 @@
             accept: "application/json",
           },
         });
+        const payload = await response.json().catch(() => null);
         if (!response.ok) {
-          throw new Error(`${response.status} ${response.statusText}`);
+          throw new Error(payload?.error || `${response.status} ${response.statusText}`);
         }
-        return response.json();
-      }
-
-      async function fetchWithGeohashFallback(location, pathBuilder) {
-        const geohashes = normalizeGeohashes(location);
-        let lastError = null;
-        for (const geohash of geohashes) {
-          try {
-            return await fetchJson(pathBuilder(geohash));
-          } catch (error) {
-            lastError = error;
-          }
-        }
-        throw lastError || new Error("No geohash available");
+        return payload;
       }
 
       async function searchLocations(query) {
-        const url = `${BOM_BASE}/locations?search=${encodeURIComponent(query)}`;
+        const url = `/api/locations?search=${encodeURIComponent(query)}`;
         const payload = await fetchJson(url);
         return payload.data || [];
       }
 
       async function searchByCoordinates(latitude, longitude) {
-        const queries = [
-          `${latitude.toFixed(4)},${longitude.toFixed(4)}`,
-          `${latitude.toFixed(3)},${longitude.toFixed(3)}`,
-        ];
-        for (const query of queries) {
-          const results = await searchLocations(query);
-          if (results.length) return results;
+        const url = `/api/locations?lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`;
+        const payload = await fetchJson(url);
+        return payload.data || [];
+      }
+
+      function weatherUrl(location) {
+        const params = new URLSearchParams({
+          country: location.countryCode,
+          name: location.name,
+          postcode: location.postcode || "",
+          state: location.state || "",
+          timezone: location.timezone || "",
+        });
+        if (location.countryCode === "AU") params.set("geohash", location.geohash);
+        if (location.countryCode === "NZ") {
+          params.set("lat", location.latitude);
+          params.set("lon", location.longitude);
         }
-        return [];
+        return `/api/weather?${params.toString()}`;
       }
 
       async function loadWeather(location) {
         state.location = location;
-        state.observations = null;
-        state.daily = null;
-        state.hourly = null;
+        state.weather = null;
         localStorage.setItem("lastLocation", JSON.stringify(location));
         renderLoading(location);
         setStatus(`Loading ${describeLocation(location)}...`);
-
-        const [observations, daily, hourly] = await Promise.allSettled([
-          fetchWithGeohashFallback(
-            location,
-            (geohash) => `${BOM_BASE}/locations/${geohash}/observations`,
-          ),
-          fetchWithGeohashFallback(
-            location,
-            (geohash) => `${BOM_BASE}/locations/${geohash}/forecasts/daily`,
-          ),
-          fetchWithGeohashFallback(
-            location,
-            (geohash) => `${BOM_BASE}/locations/${geohash}/forecasts/hourly`,
-          ),
-        ]);
-
-        state.observations =
-          observations.status === "fulfilled" ? observations.value : null;
-        state.daily = daily.status === "fulfilled" ? daily.value : null;
-        state.hourly = hourly.status === "fulfilled" ? hourly.value : null;
-
-        if (!state.observations && !state.daily && !state.hourly) {
-          throw new Error("BOM returned no weather data for that location.");
-        }
-
+        const payload = await fetchJson(weatherUrl(location));
+        state.weather = payload.data;
         renderWeather();
-        const sourceParts = [
-          state.observations ? "current conditions" : null,
-          state.daily ? "daily forecast" : null,
-          state.hourly ? "hourly forecast" : null,
-        ].filter(Boolean);
-        setStatus(`Showing ${sourceParts.join(", ")} for ${describeLocation(location)}.`);
+        setStatus(
+          `Showing ${state.weather.provider} weather for ${describeLocation(location)}.`,
+        );
       }
 
       function renderLoading(location) {
@@ -1080,58 +1042,44 @@
       }
 
       function renderWeather() {
-        const observation = state.observations?.data || {};
-        const dailyItems = state.daily?.data || [];
-        const hourlyItems = state.hourly?.data || [];
-        const forecastNow = dailyItems[0]?.now || {};
-        const descriptor =
-          dailyItems[0]?.icon_descriptor ||
-          hourlyItems[0]?.icon_descriptor ||
-          "cloudy";
-        const currentTemp =
-          observation.temp ??
-          forecastNow.temp_now ??
-          hourlyItems[0]?.temp ??
-          dailyItems[0]?.temp_max;
-        const feelsLike = observation.temp_feels_like ?? hourlyItems[0]?.temp_feels_like;
-        const station = observation.station;
-        const currentUpdated =
-          state.observations?.metadata?.observation_time ||
-          state.observations?.metadata?.issue_time ||
-          state.daily?.metadata?.issue_time;
-        const dailyUpdated = state.daily?.metadata?.issue_time;
-        const hourlyUpdated = state.hourly?.metadata?.issue_time;
+        const weather = state.weather;
+        const current = weather.current || {};
+        const currentLabel = weather.currentKind === "observation" ? "Now" : "Current forecast";
+        const rainLabel = weather.currentKind === "observation" ? "Rain since 9am" : "Rain this hour";
+        const locationMeta = [state.location.postcode, state.location.state, state.location.country]
+          .filter(Boolean)
+          .join(", ");
 
         elements.dashboard.innerHTML = `
           <section class="current-panel" aria-label="Current weather">
             <div class="location-row">
               <div>
-                <p class="eyebrow">Now</p>
+                <p class="eyebrow">${escapeHtml(currentLabel)}</p>
                 <h2 class="location-title">${escapeHtml(state.location.name)}</h2>
-                <p class="location-meta">${escapeHtml(state.location.postcode || state.location.state)}${
-                  station ? ` · ${escapeHtml(station.name)}` : ""
+                <p class="location-meta">${escapeHtml(locationMeta)}${
+                  current.stationName ? ` &middot; ${escapeHtml(current.stationName)}` : ""
                 }</p>
               </div>
-              <div class="weather-icon">${iconSvg(descriptor)}</div>
+              <div class="weather-icon">${iconSvg(current.descriptor)}</div>
             </div>
             <div class="big-temp">
-              <span class="value">${formatTempNumber(currentTemp)}</span>
+              <span class="value">${formatTempNumber(current.temp)}</span>
               <span class="unit">${tempUnit()}</span>
             </div>
-            <p class="condition">${escapeHtml(dailyItems[0]?.short_text || "Current conditions")}</p>
-            <p class="current-note">${escapeHtml(convertEmbeddedUnits(dailyItems[0]?.extended_text || "Latest BOM observation for this location."))}</p>
+            <p class="condition">${escapeHtml(current.summary || "Weather conditions")}</p>
+            <p class="current-note">${escapeHtml(convertEmbeddedUnits(current.detail || ""))}</p>
             <div class="metric-grid">
-              ${metricTile("Feels like", formatTemp(feelsLike), "thermometer")}
-              ${metricTile("Humidity", observation.humidity == null ? "--" : `${observation.humidity}%`, "humidity")}
-              ${metricTile("Wind", formatWind(observation.wind?.speed_kilometre), "wind", observation.wind?.direction)}
-              ${metricTile("Gust", formatWind(observation.gust?.speed_kilometre ?? observation.max_gust?.speed_kilometre), "gust")}
-              ${metricTile("Rain since 9am", formatRain(observation.rain_since_9am ?? observation.rain_trace), "rain")}
-              ${metricTile("Pressure", formatPressure(observation.pressure ?? observation.press), "pressure")}
+              ${metricTile("Feels like", formatTemp(current.feelsLike), "thermometer")}
+              ${metricTile("Humidity", current.humidity == null ? "--" : `${round(current.humidity)}%`, "humidity")}
+              ${metricTile("Wind", formatWind(current.windKmh), "wind", current.windDirection)}
+              ${metricTile("Gust", formatWind(current.gustKmh), "gust")}
+              ${metricTile(rainLabel, formatRain(current.rainMm), "rain")}
+              ${metricTile("Pressure", formatPressure(current.pressureHpa), "pressure")}
             </div>
             <div class="source">
-              Data from Bureau of Meteorology. ${
-                currentUpdated
-                  ? `Updated ${formatDateTime(currentUpdated, {
+              Data from ${escapeHtml(weather.provider)}. ${
+                weather.updatedAt
+                  ? `${weather.currentKind === "observation" ? "Updated" : "Retrieved"} ${formatDateTime(weather.updatedAt, {
                       weekday: "short",
                       hour: "numeric",
                       minute: "2-digit",
@@ -1141,8 +1089,8 @@
             </div>
           </section>
           <div class="main-stack">
-            ${renderDailyPanel(dailyItems, dailyUpdated)}
-            ${renderHourlyPanel(hourlyItems, hourlyUpdated)}
+            ${renderDailyPanel(weather.daily || [], weather.issuedAt)}
+            ${renderHourlyPanel(weather.hourly || [], weather.hourlyIssuedAt)}
           </div>
         `;
       }
@@ -1178,7 +1126,7 @@
           return emptyPanel("Daily Forecast", "No daily forecast returned for this location.");
         }
 
-        const visible = items.slice(0, 7);
+        const visible = items.slice(0, 10);
         return `
           <section class="forecast-panel" aria-label="Daily forecast">
             <div class="panel-head">
@@ -1201,26 +1149,24 @@
       }
 
       function renderDayCard(day) {
-        const date = new Date(day.date);
-        const max = formatTemp(day.temp_max);
-        const min = day.temp_min == null ? "--" : formatTemp(day.temp_min);
-        const rainAmount = day.rain?.amount;
-        const rainMax = rainAmount?.max ?? rainAmount?.min;
+        const date = new Date(`${day.date}T12:00:00Z`);
+        const max = formatTemp(day.tempMax);
+        const min = day.tempMin == null ? "--" : formatTemp(day.tempMin);
         const rainText = [
-          day.rain?.chance == null ? null : `${day.rain.chance}%`,
-          rainMax == null ? null : formatRain(rainMax),
+          day.rainChance == null ? null : `${day.rainChance}%`,
+          day.rainAmountMm == null ? null : formatRain(day.rainAmountMm),
         ]
           .filter(Boolean)
-          .join(" · ");
+          .join(" | ");
 
         return `
           <article class="day-card">
             <p class="day-name">${formatDateTime(date, { weekday: "short" })}</p>
             <p class="day-date">${formatDateTime(date, { day: "numeric", month: "short" })}</p>
-            <div class="day-icon">${iconSvg(day.icon_descriptor)}</div>
+            <div class="day-icon">${iconSvg(day.descriptor)}</div>
             <p class="day-temps"><span class="max">${escapeHtml(max)}</span><span class="min">${escapeHtml(min)}</span></p>
             <p class="rain-line">${escapeHtml(rainText || "Rain --")}</p>
-            <p class="summary">${escapeHtml(convertEmbeddedUnits(day.short_text || day.extended_text || ""))}</p>
+            <p class="summary">${escapeHtml(convertEmbeddedUnits(day.summary || day.detail || ""))}</p>
           </article>
         `;
       }
@@ -1256,14 +1202,15 @@
         return `
           <article class="hour">
             <p class="hour-time">${formatHourLabel(hour.time)}</p>
-            <div>${iconSvg(hour.icon_descriptor)}</div>
+            <div>${iconSvg(hour.descriptor)}</div>
             <p class="hour-temp">${formatTemp(hour.temp)}</p>
             <p class="hour-detail">${escapeHtml(
               [
-                hour.rain?.chance == null ? null : `${hour.rain.chance}% rain`,
-                hour.wind?.speed_kilometre == null
+                hour.rainChance == null ? null : `${hour.rainChance}% rain`,
+                hour.rainAmountMm == null ? null : `${formatRain(hour.rainAmountMm)} rain`,
+                hour.windKmh == null
                   ? null
-                  : `${formatWind(hour.wind.speed_kilometre)} ${hour.wind.direction || ""}`,
+                  : `${formatWind(hour.windKmh)} ${hour.windDirection || ""}`,
               ]
                 .filter(Boolean)
                 .join("\n"),
@@ -1294,12 +1241,12 @@
         }
 
         elements.suggestions.innerHTML = results
-          .slice(0, 6)
+          .slice(0, 8)
           .map(
             (location, index) => `
               <button class="suggestion" type="button" data-index="${index}">
                 <strong>${escapeHtml(location.name)}</strong>
-                <span>${escapeHtml([location.postcode, location.state].filter(Boolean).join(", "))}</span>
+                <span>${escapeHtml([location.postcode, location.state, location.countryCode].filter(Boolean).join(", "))}</span>
               </button>
             `,
           )
@@ -1325,7 +1272,7 @@
         try {
           const results = await searchLocations(query);
           if (!results.length) {
-            setStatus(`No BOM location found for "${query}".`, "error");
+            setStatus(`No Australian or New Zealand location found for "${query}".`, "error");
             renderSuggestions([]);
             return;
           }
@@ -1338,12 +1285,12 @@
             setStatus(`${results.length} locations found. Choose the closest match.`);
           }
         } catch (error) {
-          setStatus(`Could not search BOM locations. ${error.message}`, "error");
+          setStatus(`Could not search locations. ${error.message}`, "error");
         }
       }
 
       function handleLoadError(error) {
-        setStatus(`Could not load BOM weather data. ${error.message}`, "error");
+        setStatus(`Could not load weather data. ${error.message}`, "error");
       }
 
       function setUnits(units) {
@@ -1351,7 +1298,7 @@
         localStorage.setItem("units", units);
         elements.metricButton.setAttribute("aria-pressed", String(units === "metric"));
         elements.imperialButton.setAttribute("aria-pressed", String(units === "imperial"));
-        if (state.location && (state.observations || state.daily || state.hourly)) {
+        if (state.location && state.weather) {
           renderWeather();
         }
       }
@@ -1361,7 +1308,7 @@
         localStorage.setItem("clockFormat", clockFormat);
         elements.twelveHourButton.setAttribute("aria-pressed", String(clockFormat === "12"));
         elements.twentyFourHourButton.setAttribute("aria-pressed", String(clockFormat === "24"));
-        if (state.location && (state.observations || state.daily || state.hourly)) {
+        if (state.location && state.weather) {
           renderWeather();
         }
       }
@@ -1372,14 +1319,14 @@
           return;
         }
 
-        setStatus("Finding nearby BOM location...");
+        setStatus("Finding a nearby weather location...");
         navigator.geolocation.getCurrentPosition(
           async (position) => {
             try {
               const { latitude, longitude } = position.coords;
               const results = await searchByCoordinates(latitude, longitude);
               if (!results.length) {
-                setStatus("BOM did not return a nearby location.", "error");
+                setStatus("No nearby Australian or New Zealand location was found.", "error");
                 return;
               }
               await loadWeather(results[0]);
@@ -1397,7 +1344,21 @@
         if (!saved) return;
         try {
           const location = JSON.parse(saved);
-          if (location?.geohash && location?.name) {
+          if (location?.geohash && !location.countryCode) {
+            Object.assign(location, {
+              provider: "bom",
+              country: "Australia",
+              countryCode: "AU",
+              timezone: "Australia/Sydney",
+            });
+          }
+          const hasProviderLocation =
+            location?.countryCode === "AU"
+              ? Boolean(location.geohash)
+              : location?.countryCode === "NZ" &&
+                Number.isFinite(Number(location.latitude)) &&
+                Number.isFinite(Number(location.longitude));
+          if (location?.name && hasProviderLocation) {
             elements.searchInput.value = describeLocation(location);
             loadWeather(location).catch(handleLoadError);
           }

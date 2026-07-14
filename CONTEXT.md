@@ -1,45 +1,63 @@
-# BOM Unit Weather Context
+# AU and NZ Unit Weather Context
 
 ## Project Goal
 
-BOM Unit Weather is a personal web page for checking Australian weather from Bureau of Meteorology data while choosing between Metric and Imperial units.
-
-The first version is intentionally a single static page so it is easy to run, inspect, and change before deciding whether to build a backend or mobile app.
+AU and NZ Unit Weather is a personal web app for checking Australian and New Zealand weather while choosing Metric or Imperial units and a 12-hour or 24-hour clock.
 
 ## Current Features
 
-- Search by Australian city, suburb, or postcode.
-- Select from BOM location suggestions.
-- Show current conditions where available.
-- Show daily forecast data, up to the available BOM forecast range.
-- Show upcoming hourly forecast periods.
-- Toggle between Metric and Imperial units.
-- Toggle between 12-hour and 24-hour clock formats.
-- Convert temperature, wind speed, rain amount, pressure, and common units embedded in BOM narrative forecast text.
-- Persist the last selected location, unit preference, and clock preference in browser local storage.
+- Search Australian cities, suburbs, and postcodes plus New Zealand place names in one field.
+- Use BOM location results and weather for Australia.
+- Use Open-Meteo geocoding and MetService Point Forecast data for New Zealand.
+- Show BOM current observations where available.
+- Show the nearest New Zealand hourly model forecast as a current forecast, not as a live observation.
+- Show up to 10 available daily periods and 12 upcoming hourly periods.
+- Convert temperature, wind speed, rain amount, pressure, and common units embedded in BOM narrative text.
+- Persist the last selected location, units, and clock preference in browser local storage.
 
-## Data Source
+## Architecture
 
-The app currently uses the browser-facing BOM JSON API at:
+`server.js` serves the page and exposes two same-origin routes:
+
+```text
+GET /api/locations
+GET /api/weather
+```
+
+The server routes each selected location by country and normalizes both providers into one browser response shape. It also caches successful upstream responses for 10 minutes and keeps `METSERVICE_API_KEY` outside browser code.
+
+`index.html` contains the interface, unit conversions, local preference storage, and rendering code.
+
+## Provider Behavior
+
+### Australia
+
+The app uses the browser-facing BOM JSON service at:
 
 ```text
 https://api.weather.bom.gov.au/v1
 ```
 
-This is suitable for a personal prototype, but it should be treated as an unofficial integration. If the app is later published or shared broadly, consider switching to documented BOM data feeds or adding a backend cache/proxy with appropriate terms-of-use review.
+This is not a documented public developer API. BOM responses currently include a notice that restricts use, copying, and sharing. The integration should therefore remain a personal prototype unless its use is reviewed against current BOM data access options and terms.
 
-## Main File
+### New Zealand
+
+The app uses the authenticated MetService Point Forecast endpoint at:
 
 ```text
-index.html
+https://forecast-v2.metoceanapi.com/point/time
 ```
 
-The page currently contains all HTML, CSS, and JavaScript in one file.
+The Point Forecast API supplies raw deterministic model data for up to a 10-day forecast horizon. It does not mirror the curated consumer forecast exactly. Live observations are available through a separate MetService API product, so the app labels its New Zealand current panel as a forecast.
+
+New Zealand place-name search uses the Open-Meteo Geocoding API and filters results to country code `NZ`. Testing showed that its New Zealand postcode coverage is not sufficient, so the interface only promises postcode lookup for Australia.
 
 ## Known Caveats
 
-- The BOM web API can change without warning.
-- The page depends on direct browser access to BOM endpoints.
-- Some observation metrics may be unavailable for a location and display as `--`.
-- Browser geolocation may not work from every local serving context or without user permission.
-- The current design is optimized for quick personal use, not yet for app-store distribution or public hosting.
+- The BOM browser API can change or become unavailable without notice.
+- BOM usage requirements need review before publication or distribution.
+- A MetService Point Forecast key is required for New Zealand weather data.
+- MetService variable availability can depend on the account plan and available models.
+- Raw model data can differ from forecasts shown on the MetService website.
+- Some optional metrics can be unavailable and display as `--`.
+- Browser geolocation requires permission and only supports nearby use within Australia or New Zealand.

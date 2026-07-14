@@ -1,43 +1,60 @@
-# BOM Unit Weather
+# AU and NZ Unit Weather
 
-A personal weather web page for Australian locations using Bureau of Meteorology data, with a simple Metric/Imperial unit toggle.
+A personal weather web page for Australian and New Zealand locations with Metric and Imperial units, plus 12-hour and 24-hour clocks.
 
 ## Features
 
-- Search by Australian city, suburb, or postcode.
-- Choose from BOM location suggestions.
-- View current conditions where available.
-- View daily forecasts, up to the available BOM forecast range.
-- View upcoming hourly forecast periods.
-- Switch between Metric and Imperial units.
-- Switch between 12-hour and 24-hour clock formats.
+- Search by Australian city, suburb, or postcode, or by New Zealand place name.
+- Route Australian locations to Bureau of Meteorology data.
+- Route New Zealand locations to the MetService Point Forecast API.
+- View current BOM observations where available.
+- View a clearly labeled current-hour model forecast for New Zealand.
+- View up to 10 available daily forecast periods and upcoming hourly periods.
 - Convert temperature, wind, rain, pressure, and common units in BOM forecast text.
+- Keep the MetService key on the local server instead of exposing it in browser JavaScript.
+
+## Requirements
+
+- Node.js 18 or newer.
+- A MetService Point Forecast API key for New Zealand forecasts.
+
+MetService provides self-service Point Forecast API access through its [API console](https://console.metoceanapi.com/). Its current documentation describes the Starter plan as suitable for prototyping, testing, and proof-of-concept work. Check the current plan and terms before using the app outside personal local testing.
 
 ## Run Locally
 
-From the project folder:
+1. Create the local environment file:
 
 ```powershell
-python -m http.server 8077 --bind 127.0.0.1
+Copy-Item .env.example .env
 ```
 
-Then open:
+2. Add your key to `.env`:
 
 ```text
-http://127.0.0.1:8077/
+METSERVICE_API_KEY=your_key_here
 ```
 
-## Data Source
+3. Start the app:
 
-This prototype uses the browser-facing BOM JSON API:
-
-```text
-https://api.weather.bom.gov.au/v1
+```powershell
+node server.js
 ```
 
-It is intended for personal use and prototyping. If this app is later published or shared broadly, the data layer should be reviewed and likely moved to documented BOM feeds or a backend cache.
+4. Open `http://127.0.0.1:8080/`.
+
+Australian weather remains available when no MetService key is configured. New Zealand searches also work, but selecting a New Zealand result displays a key setup message.
+
+## Data Sources
+
+- Australian locations and weather: `https://api.weather.bom.gov.au/v1`
+- New Zealand point forecasts: `https://forecast-v2.metoceanapi.com/point/time`
+- New Zealand place search: [Open-Meteo Geocoding API](https://open-meteo.com/en/docs/geocoding-api)
+
+The BOM endpoint used here is a browser-facing API, not a documented public developer API. Its response includes a restrictive usage notice, and the endpoint can change without warning. Review [BOM Data Services](https://www.bom.gov.au/resources/data-services) before publishing or distributing an app that relies on it.
+
+MetService Point Forecast data is raw forecast model output. MetService states that it can differ from the meteorologist-curated forecast shown on its consumer website and app. Live MetService observations require a separate API product, so this app does not present the current-hour New Zealand forecast as an observation.
 
 ## Project Docs
 
-- [CONTEXT.md](CONTEXT.md) explains the project goal, current features, and caveats.
-- [INSTRUCTIONS.md](INSTRUCTIONS.md) includes local run steps and development notes.
+- [CONTEXT.md](CONTEXT.md) explains the architecture, provider behavior, and caveats.
+- [INSTRUCTIONS.md](INSTRUCTIONS.md) includes setup, use, and development notes.
